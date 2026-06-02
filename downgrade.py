@@ -117,7 +117,11 @@ def _downgrade_deltas(deltas, removed_ids):
     for delta in deltas:
         delta_id = delta.get("Id", "")
         base_id = delta_id.split(":")[0] if ":" in delta_id else delta_id
-        if base_id in removed_ids or delta.get("NTAEntityId") in NEW_ENTITY_TYPES_V34:
+        if base_id in removed_ids:
+            continue
+        if delta.get("NTAEntityId") in NEW_ENTITY_TYPES_V34:
+            continue
+        if delta.get("NTAPropertyId") in NEW_PROPERTIES_V34:
             continue
         result.append(delta)
     return result
