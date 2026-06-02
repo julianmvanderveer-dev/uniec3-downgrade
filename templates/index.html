@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uniec3 Downgrade 3.4 → 3.3</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", Arial, sans-serif; background: #f3f4f6; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.10);
+            padding: 40px 44px; width: 100%; max-width: 520px; }
+    h1   { font-size: 1.35rem; font-weight: 700; color: #111; margin-bottom: 4px; }
+    .sub { font-size: .875rem; color: #666; margin-bottom: 28px; line-height: 1.5; }
+    .drop-zone { border: 2px dashed #c5cad3; border-radius: 8px; padding: 36px 20px;
+                 text-align: center; cursor: pointer; transition: border-color .2s, background .2s;
+                 background: #fafafa; margin-bottom: 20px; }
+    .drop-zone.drag-over { border-color: #0078d4; background: #e8f3fc; }
+    .drop-zone.has-file  { border-color: #22c55e; background: #f0fdf4; }
+    .drop-zone svg { margin-bottom: 10px; color: #999; }
+    .drop-zone p   { font-size: .9rem; color: #555; }
+    .drop-zone .hint { font-size: .78rem; color: #aaa; margin-top: 4px; }
+    .drop-zone .chosen { font-size: .9rem; color: #166534; font-weight: 600; margin-top: 6px; }
+    #error-box { display: none; background: #fff0f0; border: 1px solid #fbb; border-radius: 6px;
+                 padding: 10px 14px; font-size: .85rem; color: #c00; margin-bottom: 16px; }
+    .btn { width: 100%; padding: 13px; background: #0078d4; color: #fff; border: none;
+           border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;
+           transition: background .2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn:hover:not(:disabled) { background: #005fa3; }
+    .btn:disabled { background: #9cc3e8; cursor: not-allowed; }
+    .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.4);
+               border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .info { font-size: .78rem; color: #888; margin-top: 18px; line-height: 1.5; }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Uniec3 Downgrade</h1>
+  <p class="sub">Zet een berekening van versie&nbsp;3.4 terug naar versie&nbsp;3.3. Upload het .uniec3 bestand — de geconverteerde versie wordt direct gedownload.</p>
+
+  <div class="drop-zone" id="drop-zone">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2"/>
+    </svg>
+    <p>Sleep een bestand hierheen of <span id="browse-link" style="color:#0078d4;text-decoration:underline;cursor:pointer">blader</span></p>
+    <p class="hint">Alleen .uniec3 bestanden van versie 3.4</p>
+    <p class="chosen" id="chosen-name" style="display:none"></p>
+  </div>
+  <input type="file" id="file-input" accept=".uniec3">
+
+  <div id="error-box"></div>
+
+  <button class="btn" id="convert-btn" disabled>
+    <span class="spinner" id="spinner"></span>
+    <span id="btn-label">Converteren &amp; downloaden</span>
+  </button>
+
+  <p class="info">De conversie verwijdert v3.4-specifieke functies (o.a. batterijopslag PV, ZEB-metrics, renovatiepaden, OVERIG-installaties). Alle overige gegevens blijven ongewijzigd.</p>
+</div>
+
+<script>
+  const dropZone   = document.getElementById("drop-zone");
+  const fileInput  = document.getElementById("file-input");
+  const convertBtn = document.getElementById("convert-btn");
+  const spinner    = document.getElementById("spinner");
+  const btnLabel   = document.getElementById("btn-label");
+  const errorBox   = document.getElementById("error-box");
+  const chosenName = document.getElementById("chosen-name");
+  let selectedFile = null;
+
+  function setFile(file) {
+    if (!file || !file.name.toLowerCase().endsWith(".uniec3")) {
+      showError("Kies een .uniec3 bestand.");
+      return;
+    }
+    selectedFile = file;
+    dropZone.classList.add("has-file");
+    chosenName.textContent = "✓ " + file.name;
+    chosenName.style.display = "block";
+    convertBtn.disabled = false;
+    hideError();
+  }
+
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    setFile(e.dataTransfer.files[0]);
+  });
+  dropZone.addEventListener("click", () => fileInput.click());
+  document.getElementById("browse-link").addEventListener("click", e => { e.stopPropagation(); fileInput.click(); });
+  fileInput.addEventListener("change", () => { setFile(fileInput.files[0]); fileInput.value = ""; });
+
+  function showError(msg) { errorBox.textContent = msg; errorBox.style.display = "block"; }
+  function hideError()    { errorBox.style.display = "none"; }
+
+  convertBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+    hideError();
+    convertBtn.disabled = true;
+    spinner.style.display = "block";
+    btnLabel.textContent = "Bezig…";
+
+    const form = new FormData();
+    form.append("bestand", selectedFile);
+
+    try {
+      const resp = await fetch("/convert", { method: "POST", body: form });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Serverfout ${resp.status}`);
+      }
+      // Trigger download via blob
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const nameMatch = cd.match(/filename="?([^";\n]+)"?/);
+      const fileName = nameMatch ? nameMatch[1] : selectedFile.name.replace(".uniec3", "_v33.uniec3");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = fileName; a.click();
+      URL.revokeObjectURL(url);
+      btnLabel.textContent = "✓ Gedownload";
+    } catch (err) {
+      showError(err.message);
+      convertBtn.disabled = false;
+      btnLabel.textContent = "Converteren & downloaden";
+    } finally {
+      spinner.style.display = "none";
+    }
+  });
+</script>
+</body>
+</html>
